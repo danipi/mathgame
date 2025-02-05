@@ -38,7 +38,7 @@
             height: 40px;
             background-color: #4CAF50;
             clip-path: polygon(0 20%, 100% 0, 100% 100%, 0 80%);
-            animation: walk 0.6s infinite;
+            animation: walk 1.2s infinite;
         }
 
         .enemy {
@@ -71,17 +71,18 @@
             transition: transform 0.1s, background-color 0.2s;
         }
 
-        button:hover {
-            background-color: #4CAF50;
+        .timer-bar {
+            width: 100%;
+            height: 5px;
+            background-color: #444;
+            margin: 10px 0;
         }
 
-        .game-over {
-            display: none;
-            text-align: center;
-            padding: 20px;
-            background-color: #ff4444;
-            border-radius: 10px;
-            margin-top: 20px;
+        .timer-progress {
+            width: 100%;
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 5s linear;
         }
 
         @keyframes walk {
@@ -109,8 +110,9 @@
             <div class="count" id="enemyCount"></div>
         </div>
     </div>
+    <div class="timer-bar"><div class="timer-progress" id="timerProgress"></div></div>
     <div class="options-container" id="optionsContainer"></div>
-    <div class="game-over" id="gameOver">
+    <div class="game-over" id="gameOver" style="display: none;">
         <h2>Game Over!</h2>
         <p>Final Army Size: <span id="finalScore">0</span></p>
         <button onclick="startGame()">Play Again</button>
@@ -118,8 +120,9 @@
 
     <script>
         let currentSoldiers = 0;
-        let gameActive = false;
         let currentEnemy = 0;
+        let gameActive = false;
+        let timeoutId = null;
 
         function generateRandomNumber(min, max) {
             return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -129,7 +132,9 @@
             const group = document.createElement('div');
             group.className = `group ${isEnemy ? 'enemy' : ''}`;
             
-            for (let i = 0; i < Math.min(count, 50); i++) {
+            // Create up to 50 soldier elements for visualization
+            const displayCount = Math.min(count, 50);
+            for (let i = 0; i < displayCount; i++) {
                 const soldier = document.createElement('div');
                 soldier.className = `soldier ${isEnemy ? 'enemy' : ''}`;
                 group.appendChild(soldier);
@@ -143,44 +148,43 @@
             return group;
         }
 
-        function animateGroup(element, direction) {
-            element.style.animation = `march${direction} 3s linear infinite`;
-        }
-
-        function generateOperations(current) {
+        function generateBalancedOperations(current) {
             const operations = [];
             const operationTypes = ['+', '-', '×', '÷'];
             
-            // Generate two different operations
             while (operations.length < 2) {
                 const type = operationTypes[generateRandomNumber(0, 3)];
                 let value, result;
                 
                 switch(type) {
                     case '+':
-                        value = generateRandomNumber(current * 0.2, current * 0.4);
+                        value = generateRandomNumber(Math.ceil(current * 0.2), Math.floor(current * 0.4));
                         result = current + value;
                         break;
                     case '-':
-                        value = generateRandomNumber(current * 0.1, current * 0.3);
+                        value = generateRandomNumber(Math.ceil(current * 0.1), Math.floor(current * 0.3));
                         result = current - value;
                         break;
                     case '×':
-                        value = generateRandomNumber(15, 30) / 10; // 1.5 to 3.0
+                        value = generateRandomNumber(2, 3);
                         result = current * value;
                         break;
                     case '÷':
-                        value = generateRandomNumber(15, 30) / 10; // 1.5 to 3.0
+                        const divisors = [];
+                        for (let i = 2; i <= Math.min(5, current/2); i++) {
+                            if (current % i === 0) divisors.push(i);
+                        }
+                        if (divisors.length === 0) continue;
+                        value = divisors[generateRandomNumber(0, divisors.length-1)];
                         result = current / value;
                         break;
                 }
                 
-                // Ensure valid operation and cap at 1000
-                if (result > 0 && result <= 1000) {
+                if (result > 0 && result <= 1000 && Number.isInteger(result)) {
                     operations.push({
                         symbol: type,
-                        value: Math.round(value),
-                        result: Math.round(result)
+                        value: value,
+                        result: result
                     });
                 }
             }
@@ -189,20 +193,33 @@
         }
 
         function showOptions() {
+            clearTimeout(timeoutId);
             const optionsContainer = document.getElementById('optionsContainer');
             optionsContainer.innerHTML = '';
             
-            const operations = generateOperations(currentSoldiers);
+            const operations = generateBalancedOperations(currentSoldiers);
             currentEnemy = generateRandomNumber(
-                Math.min(...operations.map(op => op.result)) * 0.7,
-                Math.min(...operations.map(op => op.result)) * 0.9
+                Math.floor(Math.min(...operations.map(op => op.result)) * 0.7),
+                Math.floor(Math.min(...operations.map(op => op.result)) * 0.9)
             );
 
-            // Update enemy display
+            // Update displays
             const enemyGroup = document.getElementById('enemyGroup');
             enemyGroup.innerHTML = '';
             enemyGroup.appendChild(createSoldiers(currentEnemy, true));
-            animateGroup(enemyGroup, 'Left');
+            enemyGroup.style.animation = 'marchLeft 5s linear';
+
+            const playerGroup = document.getElementById('playerGroup');
+            playerGroup.innerHTML = '';
+            playerGroup.appendChild(createSoldiers(currentSoldiers));
+
+            // Start timer
+            const timerProgress = document.getElementById('timerProgress');
+            timerProgress.style.width = '100%';
+            void timerProgress.offsetWidth; // Trigger reflow
+            timerProgress.style.width = '0%';
+
+            timeoutId = setTimeout(() => handleTimeout(), 5000);
 
             operations.forEach(op => {
                 const button = document.createElement('button');
@@ -214,20 +231,10 @@
 
         function handleChoice(result) {
             if (!gameActive) return;
-
-            // Apply operation
-            currentSoldiers = Math.min(result, 1000);
             
-            // Apply enemy damage
+            currentSoldiers = Math.min(result, 1000);
             currentSoldiers -= currentEnemy;
-            currentSoldiers = Math.max(currentSoldiers, 0);
-
-            // Update player display
-            const playerGroup = document.getElementById('playerGroup');
-            playerGroup.innerHTML = '';
-            playerGroup.appendChild(createSoldiers(currentSoldiers));
-            animateGroup(playerGroup, 'Right');
-
+            
             if (currentSoldiers <= 0) {
                 gameOver();
             } else {
@@ -235,8 +242,16 @@
             }
         }
 
+        function handleTimeout() {
+            if (!gameActive) return;
+            currentSoldiers -= currentEnemy;
+            gameOver();
+        }
+
         function gameOver() {
             gameActive = false;
+            clearTimeout(timeoutId);
+            currentSoldiers = Math.max(currentSoldiers, 0);
             document.getElementById('gameOver').style.display = 'block';
             document.getElementById('finalScore').textContent = currentSoldiers;
         }
@@ -245,12 +260,6 @@
             currentSoldiers = generateRandomNumber(100, 150);
             gameActive = true;
             document.getElementById('gameOver').style.display = 'none';
-            
-            const playerGroup = document.getElementById('playerGroup');
-            playerGroup.innerHTML = '';
-            playerGroup.appendChild(createSoldiers(currentSoldiers));
-            animateGroup(playerGroup, 'Right');
-            
             showOptions();
         }
 
