@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math War Commander</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .soldiers-display {
+            text-align: center;
+            font-size: 2.5em;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #333;
+            color: white;
+            border-radius: 10px;
+        }
+
+        .options-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        button {
+            padding: 20px;
+            font-size: 1.2em;
+            border: none;
+            border-radius: 8px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .game-over {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            background-color: #ff4444;
+            color: white;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .restart-btn {
+            background-color: #008CBA;
+            margin-top: 10px;
+        }
+
+        @media (min-width: 480px) {
+            .options-container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="soldiers-display" id="soldiersDisplay">0</div>
+        <div class="options-container" id="optionsContainer"></div>
+        <div class="game-over" id="gameOver">
+            <h2>Game Over!</h2>
+            <p>Your final force: <span id="finalScore">0</span></p>
+            <button class="restart-btn" onclick="startGame()">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        let currentSoldiers = 0;
+        let gameActive = false;
+
+        function generateRandomNumber(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function generateOperation() {
+            const operations = [
+                { symbol: '+', fn: (a, b) => a + b },
+                { symbol: '-', fn: (a, b) => a - b },
+                { symbol: '×', fn: (a, b) => a * b },
+                { symbol: '÷', fn: (a, b) => Math.round(a / b) }
+            ];
+            const op = operations[generateRandomNumber(0, 3)];
+            const number = generateRandomNumber(1, 10);
+            return { symbol: op.symbol, number, fn: op.fn };
+        }
+
+        function updateDisplay() {
+            document.getElementById('soldiersDisplay').textContent = currentSoldiers;
+        }
+
+        function showOptions() {
+            const optionsContainer = document.getElementById('optionsContainer');
+            optionsContainer.innerHTML = '';
+
+            const option1 = generateOperation();
+            const option2 = generateOperation();
+
+            const button1 = document.createElement('button');
+            button1.innerHTML = `${option1.symbol} ${option1.number}`;
+            button1.onclick = () => handleChoice(option1.fn, option1.number);
+
+            const button2 = document.createElement('button');
+            button2.innerHTML = `${option2.symbol} ${option2.number}`;
+            button2.onclick = () => handleChoice(option2.fn, option2.number);
+
+            optionsContainer.appendChild(button1);
+            optionsContainer.appendChild(button2);
+        }
+
+        function handleChoice(operation, number) {
+            if (!gameActive) return;
+
+            currentSoldiers = operation(currentSoldiers, number);
+            const enemyLoss = generateRandomNumber(5, 25);
+            currentSoldiers -= enemyLoss;
+
+            if (checkGameOver()) return;
+
+            updateDisplay();
+            showOptions();
+        }
+
+        function checkGameOver() {
+            if (currentSoldiers <= 0) {
+                gameActive = false;
+                document.getElementById('gameOver').style.display = 'block';
+                document.getElementById('finalScore').textContent = Math.max(currentSoldiers, 0);
+                return true;
+            }
+            return false;
+        }
+
+        function startGame() {
+            currentSoldiers = generateRandomNumber(50, 100);
+            gameActive = true;
+            document.getElementById('gameOver').style.display = 'none';
+            updateDisplay();
+            showOptions();
+        }
+
+        // Start the game when page loads
+        startGame();
+    </script>
+</body>
+</html>
