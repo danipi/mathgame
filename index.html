@@ -3,38 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Math War Commander</title>
+    <title>Math Warfare</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
-            background-color: #f0f0f0;
+            background-color: #1a1a1a;
+            color: white;
             display: flex;
             flex-direction: column;
             align-items: center;
+            overflow-x: hidden;
         }
 
-        .container {
-            max-width: 600px;
+        .battlefield {
+            position: relative;
             width: 100%;
+            height: 200px;
+            margin: 20px 0;
+            border-top: 2px solid #444;
+            border-bottom: 2px solid #444;
         }
 
-        .soldiers-display {
-            text-align: center;
-            font-size: 2.5em;
-            margin: 20px 0;
-            padding: 15px;
-            background-color: #333;
-            color: white;
-            border-radius: 10px;
+        .group {
+            position: absolute;
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .soldier {
+            width: 30px;
+            height: 40px;
+            background-color: #4CAF50;
+            clip-path: polygon(0 20%, 100% 0, 100% 100%, 0 80%);
+            animation: walk 0.6s infinite;
+        }
+
+        .enemy {
+            background-color: #ff4444;
+        }
+
+        .count {
+            position: absolute;
+            font-size: 1.2em;
+            font-weight: bold;
+            text-shadow: 2px 2px 2px rgba(0,0,0,0.5);
         }
 
         .options-container {
             display: grid;
             grid-template-columns: 1fr;
             gap: 10px;
-            margin: 20px 0;
+            width: 100%;
+            max-width: 600px;
         }
 
         button {
@@ -42,14 +65,14 @@
             font-size: 1.2em;
             border: none;
             border-radius: 8px;
-            background-color: #4CAF50;
+            background-color: #333;
             color: white;
             cursor: pointer;
-            transition: transform 0.1s;
+            transition: transform 0.1s, background-color 0.2s;
         }
 
-        button:active {
-            transform: scale(0.98);
+        button:hover {
+            background-color: #4CAF50;
         }
 
         .game-over {
@@ -57,109 +80,180 @@
             text-align: center;
             padding: 20px;
             background-color: #ff4444;
-            color: white;
             border-radius: 10px;
             margin-top: 20px;
         }
 
-        .restart-btn {
-            background-color: #008CBA;
-            margin-top: 10px;
+        @keyframes walk {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
         }
 
-        @media (min-width: 480px) {
-            .options-container {
-                grid-template-columns: 1fr 1fr;
-            }
+        @keyframes marchRight {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(100vw); }
+        }
+
+        @keyframes marchLeft {
+            from { transform: translateX(100%); }
+            to { transform: translateX(-100vw); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="soldiers-display" id="soldiersDisplay">0</div>
-        <div class="options-container" id="optionsContainer"></div>
-        <div class="game-over" id="gameOver">
-            <h2>Game Over!</h2>
-            <p>Your final force: <span id="finalScore">0</span></p>
-            <button class="restart-btn" onclick="startGame()">Play Again</button>
+    <div class="battlefield">
+        <div id="playerGroup" class="group" style="left: 10%;">
+            <div class="count" id="playerCount"></div>
         </div>
+        <div id="enemyGroup" class="group" style="right: 10%;">
+            <div class="count" id="enemyCount"></div>
+        </div>
+    </div>
+    <div class="options-container" id="optionsContainer"></div>
+    <div class="game-over" id="gameOver">
+        <h2>Game Over!</h2>
+        <p>Final Army Size: <span id="finalScore">0</span></p>
+        <button onclick="startGame()">Play Again</button>
     </div>
 
     <script>
         let currentSoldiers = 0;
         let gameActive = false;
+        let currentEnemy = 0;
 
         function generateRandomNumber(min, max) {
             return Math.floor(Math.random() * (max - min + 1)) + min;
         }
 
-        function generateOperation() {
-            const operations = [
-                { symbol: '+', fn: (a, b) => a + b },
-                { symbol: '-', fn: (a, b) => a - b },
-                { symbol: '×', fn: (a, b) => a * b },
-                { symbol: '÷', fn: (a, b) => Math.round(a / b) }
-            ];
-            const op = operations[generateRandomNumber(0, 3)];
-            const number = generateRandomNumber(1, 10);
-            return { symbol: op.symbol, number, fn: op.fn };
+        function createSoldiers(count, isEnemy = false) {
+            const group = document.createElement('div');
+            group.className = `group ${isEnemy ? 'enemy' : ''}`;
+            
+            for (let i = 0; i < Math.min(count, 50); i++) {
+                const soldier = document.createElement('div');
+                soldier.className = `soldier ${isEnemy ? 'enemy' : ''}`;
+                group.appendChild(soldier);
+            }
+            
+            const countDisplay = document.createElement('div');
+            countDisplay.className = 'count';
+            countDisplay.textContent = count;
+            group.appendChild(countDisplay);
+            
+            return group;
         }
 
-        function updateDisplay() {
-            document.getElementById('soldiersDisplay').textContent = currentSoldiers;
+        function animateGroup(element, direction) {
+            element.style.animation = `march${direction} 3s linear infinite`;
+        }
+
+        function generateOperations(current) {
+            const operations = [];
+            const operationTypes = ['+', '-', '×', '÷'];
+            
+            // Generate two different operations
+            while (operations.length < 2) {
+                const type = operationTypes[generateRandomNumber(0, 3)];
+                let value, result;
+                
+                switch(type) {
+                    case '+':
+                        value = generateRandomNumber(current * 0.2, current * 0.4);
+                        result = current + value;
+                        break;
+                    case '-':
+                        value = generateRandomNumber(current * 0.1, current * 0.3);
+                        result = current - value;
+                        break;
+                    case '×':
+                        value = generateRandomNumber(15, 30) / 10; // 1.5 to 3.0
+                        result = current * value;
+                        break;
+                    case '÷':
+                        value = generateRandomNumber(15, 30) / 10; // 1.5 to 3.0
+                        result = current / value;
+                        break;
+                }
+                
+                // Ensure valid operation and cap at 1000
+                if (result > 0 && result <= 1000) {
+                    operations.push({
+                        symbol: type,
+                        value: Math.round(value),
+                        result: Math.round(result)
+                    });
+                }
+            }
+            
+            return operations;
         }
 
         function showOptions() {
             const optionsContainer = document.getElementById('optionsContainer');
             optionsContainer.innerHTML = '';
+            
+            const operations = generateOperations(currentSoldiers);
+            currentEnemy = generateRandomNumber(
+                Math.min(...operations.map(op => op.result)) * 0.7,
+                Math.min(...operations.map(op => op.result)) * 0.9
+            );
 
-            const option1 = generateOperation();
-            const option2 = generateOperation();
+            // Update enemy display
+            const enemyGroup = document.getElementById('enemyGroup');
+            enemyGroup.innerHTML = '';
+            enemyGroup.appendChild(createSoldiers(currentEnemy, true));
+            animateGroup(enemyGroup, 'Left');
 
-            const button1 = document.createElement('button');
-            button1.innerHTML = `${option1.symbol} ${option1.number}`;
-            button1.onclick = () => handleChoice(option1.fn, option1.number);
-
-            const button2 = document.createElement('button');
-            button2.innerHTML = `${option2.symbol} ${option2.number}`;
-            button2.onclick = () => handleChoice(option2.fn, option2.number);
-
-            optionsContainer.appendChild(button1);
-            optionsContainer.appendChild(button2);
+            operations.forEach(op => {
+                const button = document.createElement('button');
+                button.innerHTML = `${op.symbol} ${op.value}`;
+                button.onclick = () => handleChoice(op.result);
+                optionsContainer.appendChild(button);
+            });
         }
 
-        function handleChoice(operation, number) {
+        function handleChoice(result) {
             if (!gameActive) return;
 
-            currentSoldiers = operation(currentSoldiers, number);
-            const enemyLoss = generateRandomNumber(5, 25);
-            currentSoldiers -= enemyLoss;
+            // Apply operation
+            currentSoldiers = Math.min(result, 1000);
+            
+            // Apply enemy damage
+            currentSoldiers -= currentEnemy;
+            currentSoldiers = Math.max(currentSoldiers, 0);
 
-            if (checkGameOver()) return;
+            // Update player display
+            const playerGroup = document.getElementById('playerGroup');
+            playerGroup.innerHTML = '';
+            playerGroup.appendChild(createSoldiers(currentSoldiers));
+            animateGroup(playerGroup, 'Right');
 
-            updateDisplay();
-            showOptions();
+            if (currentSoldiers <= 0) {
+                gameOver();
+            } else {
+                showOptions();
+            }
         }
 
-        function checkGameOver() {
-            if (currentSoldiers <= 0) {
-                gameActive = false;
-                document.getElementById('gameOver').style.display = 'block';
-                document.getElementById('finalScore').textContent = Math.max(currentSoldiers, 0);
-                return true;
-            }
-            return false;
+        function gameOver() {
+            gameActive = false;
+            document.getElementById('gameOver').style.display = 'block';
+            document.getElementById('finalScore').textContent = currentSoldiers;
         }
 
         function startGame() {
-            currentSoldiers = generateRandomNumber(50, 100);
+            currentSoldiers = generateRandomNumber(100, 150);
             gameActive = true;
             document.getElementById('gameOver').style.display = 'none';
-            updateDisplay();
+            
+            const playerGroup = document.getElementById('playerGroup');
+            playerGroup.innerHTML = '';
+            playerGroup.appendChild(createSoldiers(currentSoldiers));
+            animateGroup(playerGroup, 'Right');
+            
             showOptions();
         }
 
-        // Start the game when page loads
         startGame();
     </script>
 </body>
