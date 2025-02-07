@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Soldier Math Game</title>
   <style>
-    /* Basic page reset and layout */
+    /* Basic reset and layout */
     body {
       margin: 0;
       padding: 0;
@@ -62,7 +62,7 @@
       width: 100%;
       height: 100%;
     }
-    /* Color each soldier according to side */
+    /* Color for each side */
     .player-soldier svg {
       fill: blue;
     }
@@ -95,7 +95,7 @@
       color: #900;
       padding: 20px;
     }
-    /* CSS animations: Both armies march toward each other */
+    /* CSS animations for marching */
     @keyframes marchRight {
       from { transform: translateX(0); }
       to { transform: translateX(50%); }
@@ -117,17 +117,17 @@
       <div id="player-count">Soldiers: 0</div>
       <div id="enemy-count">Enemy Soldiers: 0</div>
     </div>
-    <!-- Battlefield: Two army containers -->
+    <!-- Battlefield: Army containers -->
     <div id="battlefield">
       <div id="player-army" class="army"></div>
       <div id="enemy-army" class="army"></div>
     </div>
-    <!-- Option buttons for the math operations -->
+    <!-- Option buttons for math operations -->
     <div id="options">
       <button id="option1"></button>
       <button id="option2"></button>
     </div>
-    <!-- Timer display -->
+    <!-- Timer -->
     <div id="timer">Time left: 4</div>
   </div>
   <!-- Game Over screen -->
@@ -139,7 +139,7 @@
   <script>
     (function(){
       // Global game variables
-      let playerSoldiers; // persists across stages (max 200)
+      let playerSoldiers; // persists across stages, capped at 200
       let enemySoldiers;
       let currentStage = 0;
       let timerInterval;
@@ -154,25 +154,24 @@
       const option1El = document.getElementById("option1");
       const option2El = document.getElementById("option2");
       const timerEl = document.getElementById("timer");
-      const battlefieldEl = document.getElementById("battlefield");
       const playerArmyEl = document.getElementById("player-army");
       const enemyArmyEl = document.getElementById("enemy-army");
       const gameContainerEl = document.getElementById("game-container");
       const gameOverEl = document.getElementById("game-over");
       const restartEl = document.getElementById("restart");
       
-      // Utility: return random integer in [min, max]
+      // Utility: random integer in [min, max]
       function randomInt(min, max) {
         return Math.floor(Math.random() * (max - min + 1)) + min;
       }
       
-      // Update the text stats on screen
+      // Update the stats displayed on screen.
       function updateStats() {
         playerCountEl.textContent = "Soldiers: " + playerSoldiers;
         enemyCountEl.textContent = "Enemy Soldiers: " + enemySoldiers;
       }
       
-      // Create a soldier DOM element with inline SVG.
+      // Create a soldier element with an inline SVG.
       function createSoldier(side) {
         const div = document.createElement("div");
         div.classList.add("soldier");
@@ -181,17 +180,14 @@
         } else if(side === "enemy"){
           div.classList.add("enemy-soldier");
         }
-        // A simple SVG that resembles a soldier figure.
         div.innerHTML = `<svg viewBox="0 0 24 24">
-          <path d="M12 2C10.343 2 9 3.343 9 5s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 8c-2.206 0-4 
-          1.794-4 4v5h8v-5c0-2.206-1.794-4-4-4z"/>
+          <path d="M12 2C10.343 2 9 3.343 9 5s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 8c-2.206 
+          0-4 1.794-4 4v5h8v-5c0-2.206-1.794-4-4-4z"/>
         </svg>`;
         return div;
       }
       
-      // Render the armies with a given count.
-      // For the player, count should be the intermediate value (after math op, capped at 200).
-      // For enemy, count is enemySoldiers.
+      // Render the armies with the specified counts.
       function renderArmies(playerCount, enemyCount) {
         playerArmyEl.innerHTML = "";
         enemyArmyEl.innerHTML = "";
@@ -201,11 +197,89 @@
         for(let i = 0; i < enemyCount; i++){
           enemyArmyEl.appendChild(createSoldier("enemy"));
         }
-        // Reset positions and remove any prior animations.
+        // Reset positions and remove prior animations.
         playerArmyEl.style.left = "0";
         enemyArmyEl.style.right = "0";
         playerArmyEl.classList.remove("marching");
         enemyArmyEl.classList.remove("marching");
+      }
+      
+      // Generate math options so that their final results (after subtracting enemySoldiers)
+      // differ by no more than 10 and are not trivially different.
+      // The two possible operation sets are:
+      //   set1: plus ("+") and multiplication ("*")
+      //   set2: minus ("-") and division ("/")
+      // When playerSoldiers is high (>=150), we force set2.
+      function generateOptions() {
+        let set;
+        if(playerSoldiers >= 150) {
+          set = "minusDivide";
+        } else {
+          set = (Math.random() < 0.5) ? "plusMultiply" : "minusDivide";
+        }
+        let attempts = 0;
+        if(set === "plusMultiply") {
+          let A, F, intermPlus, intermMult, finalPlus, finalMult;
+          let maxAdd = 200 - playerSoldiers;
+          // If no room for addition, fallback.
+          if(maxAdd < 1) { set = "minusDivide"; }
+          else {
+            do {
+              attempts++;
+              A = randomInt(1, maxAdd);
+              F = (Math.random() < 0.5) ? 2 : 3;
+              intermPlus = Math.min(playerSoldiers + A, 200);
+              intermMult = Math.min(playerSoldiers * F, 200);
+              finalPlus = intermPlus - enemySoldiers;
+              finalMult = intermMult - enemySoldiers;
+            } while ((Math.abs(finalPlus - finalMult) > 10 ||
+                      finalPlus <= 0 || finalMult <= 0 ||
+                      finalPlus === finalMult) && attempts < 20);
+            if(attempts >= 20) {
+              // Fallback to minus/divide if a good pair couldn’t be found.
+              set = "minusDivide";
+            } else {
+              if(finalPlus > finalMult) {
+                optionsData = {
+                  good: { op: "+", num: A, intermediate: intermPlus, final: finalPlus },
+                  bad: { op: "*", num: F, intermediate: intermMult, final: finalMult }
+                };
+              } else {
+                optionsData = {
+                  good: { op: "*", num: F, intermediate: intermMult, final: finalMult },
+                  bad: { op: "+", num: A, intermediate: intermPlus, final: finalPlus }
+                };
+              }
+              return;
+            }
+          }
+        }
+        if(set === "minusDivide") {
+          let X, Y, intermMinus, intermDiv, finalMinus, finalDiv;
+          do {
+            attempts++;
+            if(playerSoldiers <= 1) break;
+            X = randomInt(1, playerSoldiers - 1);
+            Y = randomInt(2, 4);
+            intermMinus = playerSoldiers - X;
+            intermDiv = Math.floor(playerSoldiers / Y);
+            finalMinus = intermMinus - enemySoldiers;
+            finalDiv = intermDiv - enemySoldiers;
+          } while ((Math.abs(finalMinus - finalDiv) > 10 ||
+                    finalMinus <= 0 || finalDiv <= 0 ||
+                    finalMinus === finalDiv) && attempts < 20);
+          if(finalMinus > finalDiv) {
+            optionsData = {
+              good: { op: "-", num: X, intermediate: intermMinus, final: finalMinus },
+              bad: { op: "/", num: Y, intermediate: intermDiv, final: finalDiv }
+            };
+          } else {
+            optionsData = {
+              good: { op: "/", num: Y, intermediate: intermDiv, final: finalDiv },
+              bad: { op: "-", num: X, intermediate: intermMinus, final: finalMinus }
+            };
+          }
+        }
       }
       
       // Begin a new stage.
@@ -213,57 +287,15 @@
         stageInProgress = true;
         chosenOption = null;
         currentStage++;
-        
-        // Determine enemy soldier count (for visual effect, a modest number)
+        // Random enemy count for visual effect.
         enemySoldiers = randomInt(10, 40);
         updateStats();
-        
-        // Render the current player soldiers (from previous stage) as icons.
+        // Render current player's soldiers (using playerSoldiers).
         renderArmies(playerSoldiers, enemySoldiers);
-        
-        // Generate two math operation options.
-        // We compute an “intermediate” value then a “final” value after cancellation.
-        // For the good option, choose an operator and operand that yields a higher final result.
-        let goodOption = {};
-        let opGood = (Math.random() < 0.5) ? "+" : "*";
-        if(opGood === "+") {
-          // Choose an addend that increases the count well above enemy count.
-          let addend = randomInt(enemySoldiers + 1, enemySoldiers + 20);
-          // Final will be: (playerSoldiers + addend) capped at 200, then minus enemySoldiers.
-          let intermediate = Math.min(playerSoldiers + addend, 200);
-          goodOption = { op: "+", num: addend, intermediate: intermediate, final: intermediate - enemySoldiers };
-        } else {
-          // Multiplication option.
-          let factor = randomInt(2, 3);
-          let intermediate = Math.min(playerSoldiers * factor, 200);
-          goodOption = { op: "*", num: factor, intermediate: intermediate, final: intermediate - enemySoldiers };
-        }
-        
-        // Bad option: subtraction or weak addition.
-        let badOption = {};
-        let opBad = (Math.random() < 0.5) ? "-" : "+";
-        if(opBad === "-") {
-          let subtrahend = randomInt(1, Math.min(playerSoldiers, enemySoldiers + 10));
-          let intermediate = playerSoldiers - subtrahend; // no cap needed if reducing
-          badOption = { op: "-", num: subtrahend, intermediate: intermediate, final: intermediate - enemySoldiers };
-        } else {
-          // Weak addition.
-          let addend = randomInt(1, enemySoldiers);
-          let intermediate = Math.min(playerSoldiers + addend, 200);
-          badOption = { op: "+", num: addend, intermediate: intermediate, final: intermediate - enemySoldiers };
-        }
-        
-        // Ensure that the "good" option gives a higher final result.
-        if(goodOption.final < badOption.final){
-          let temp = goodOption;
-          goodOption = badOption;
-          badOption = temp;
-        }
-        
-        optionsData = { good: goodOption, bad: badOption };
-        
-        // Randomly assign the good and bad options to the two buttons.
-        if(Math.random() < 0.5){
+        // Generate options that satisfy the requirements.
+        generateOptions();
+        // Randomly assign the two options to the two buttons.
+        if(Math.random() < 0.5) {
           option1El.textContent = optionsData.good.op + optionsData.good.num;
           option2El.textContent = optionsData.bad.op + optionsData.bad.num;
           option1El.dataset.option = "good";
@@ -275,7 +307,7 @@
           option2El.dataset.option = "good";
         }
         
-        // Start a 4‑second timer for making a choice.
+        // Start a 4‑second timer for the player's choice.
         timeLeft = 4;
         timerEl.textContent = "Time left: " + timeLeft;
         if(timerInterval) clearInterval(timerInterval);
@@ -285,26 +317,25 @@
           if(timeLeft <= 0){
             clearInterval(timerInterval);
             if(!chosenOption){
-              // If no selection is made, automatically choose the bad option.
+              // Auto-select the "bad" option.
               chosenOption = optionsData.bad;
               disableOptions();
               startBattleAnimation();
             }
           }
         }, 1000);
-        
-        // Enable buttons.
+        // Enable option buttons.
         option1El.disabled = false;
         option2El.disabled = false;
       }
       
-      // Disable option buttons to prevent further selection.
+      // Disable the option buttons.
       function disableOptions(){
         option1El.disabled = true;
         option2El.disabled = true;
       }
       
-      // Handle option button clicks.
+      // Option button click handlers.
       option1El.addEventListener("click", function(){
         if(!stageInProgress || chosenOption) return;
         chosenOption = optionsData[this.dataset.option];
@@ -312,7 +343,6 @@
         clearInterval(timerInterval);
         startBattleAnimation();
       });
-      
       option2El.addEventListener("click", function(){
         if(!stageInProgress || chosenOption) return;
         chosenOption = optionsData[this.dataset.option];
@@ -322,74 +352,49 @@
       });
       
       // Start the battle animation.
-      // Here we apply the chosen math operation, re-render the armies with the new (intermediate) numbers,
-      // animate both armies marching toward each other, and then start the collision animation.
+      // The chosen operation’s “intermediate” value (already computed) is used for a pre-collision display.
+      // Then after the collision animation (cancelling enemy soldiers), the surviving difference (option.final)
+      // becomes the new playerSoldiers (capped at 200).
       function startBattleAnimation(){
-        // Calculate the new numbers:
-        // intermediate = (playerSoldiers op operand) capped at 200,
-        // final = intermediate - enemySoldiers.
-        let intermediate;
-        if(chosenOption.op === "+"){
-          intermediate = playerSoldiers + chosenOption.num;
-        } else if(chosenOption.op === "*"){
-          intermediate = playerSoldiers * chosenOption.num;
-        } else if(chosenOption.op === "-"){
-          intermediate = playerSoldiers - chosenOption.num;
-        }
-        intermediate = Math.min(intermediate, 200);
-        let finalCount = intermediate - enemySoldiers;
-        chosenOption.intermediate = intermediate;
-        chosenOption.final = finalCount;
-        
-        // Re-render armies using the new numbers.
-        renderArmies(intermediate, enemySoldiers);
-        
-        // Animate marching: both armies move toward the center.
+        // Re-render armies with the intermediate count.
+        renderArmies(chosenOption.intermediate, enemySoldiers);
+        // Both armies march toward each other.
         playerArmyEl.classList.add("marching");
         enemyArmyEl.classList.add("marching");
         playerArmyEl.style.animationName = "marchRight";
         enemyArmyEl.style.animationName = "marchLeft";
-        
-        // After the march (2 seconds), animate the cancellation effect.
+        // After the march, animate the cancellation.
         setTimeout(function(){
           animateCollision(chosenOption.intermediate, enemySoldiers, chosenOption.final);
         }, 2000);
       }
       
-      // Animate collision: soldiers from both sides cancel each other out.
-      // The function gradually “fades” out a pair of soldier icons every 50ms.
+      // Animate collision: fade out matching pairs of soldier icons.
       function animateCollision(intermediate, enemyCount, finalCount) {
         let playerIcons = Array.from(playerArmyEl.querySelectorAll('.soldier'));
         let enemyIcons = Array.from(enemyArmyEl.querySelectorAll('.soldier'));
-        let cancelCount = Math.min(enemyCount, intermediate); // normally equals enemyCount.
+        let cancelCount = Math.min(enemyCount, intermediate);
         let i = 0;
         let interval = setInterval(function(){
           if(i < cancelCount){
-            if(playerIcons[i]){
-              playerIcons[i].classList.add("faded");
-            }
-            if(enemyIcons[i]){
-              enemyIcons[i].classList.add("faded");
-            }
+            if(playerIcons[i]) playerIcons[i].classList.add("faded");
+            if(enemyIcons[i]) enemyIcons[i].classList.add("faded");
             i++;
           } else {
             clearInterval(interval);
-            // After cancellation, re-render the player's army to show only the survivors.
             setTimeout(function(){
-              // Update player's soldier count. If finalCount is <= 0, game over.
+              // Update player's soldier count.
               playerSoldiers = finalCount;
-              // Ensure it never goes above 200.
               playerSoldiers = Math.min(playerSoldiers, 200);
               updateStats();
-              // Re-render the player's army to show only survivors.
+              // Re-render player's army with survivors.
               playerArmyEl.innerHTML = "";
-              for(let j = 0; j < Math.max(playerSoldiers,0); j++){
+              for(let j = 0; j < Math.max(playerSoldiers, 0); j++){
                 playerArmyEl.appendChild(createSoldier("player"));
               }
-              // Clear the enemy side.
+              // Clear enemy side.
               enemyArmyEl.innerHTML = "";
-              
-              // Check for game over.
+              // End game if no soldiers remain.
               if(playerSoldiers <= 0){
                 endGame();
               } else {
@@ -400,7 +405,7 @@
         }, 50);
       }
       
-      // End the game and show the Game Over screen.
+      // End the game.
       function endGame(){
         stageInProgress = false;
         gameContainerEl.style.display = "none";
