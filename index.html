@@ -127,7 +127,7 @@
       <button id="option1"></button>
       <button id="option2"></button>
     </div>
-    <!-- Timer -->
+    <!-- Timer display -->
     <div id="timer">Time left: 4</div>
   </div>
   <!-- Game Over screen -->
@@ -317,7 +317,7 @@
           if(timeLeft <= 0){
             clearInterval(timerInterval);
             if(!chosenOption){
-              // Auto-select the "bad" option.
+              // No user input: auto-select the worst option.
               chosenOption = optionsData.bad;
               disableOptions();
               startBattleAnimation();
@@ -353,7 +353,7 @@
       
       // Start the battle animation.
       // The chosen operation’s “intermediate” value (already computed) is used for a pre-collision display.
-      // Then after the collision animation (cancelling enemy soldiers), the surviving difference (option.final)
+      // Then after the collision animation, the surviving difference (option.final)
       // becomes the new playerSoldiers (capped at 200).
       function startBattleAnimation(){
         // Re-render armies with the intermediate count.
@@ -383,9 +383,8 @@
           } else {
             clearInterval(interval);
             setTimeout(function(){
-              // Update player's soldier count.
-              playerSoldiers = finalCount;
-              playerSoldiers = Math.min(playerSoldiers, 200);
+              // Update player's soldier count (final value, capped at 200).
+              playerSoldiers = Math.min(finalCount, 200);
               updateStats();
               // Re-render player's army with survivors.
               playerArmyEl.innerHTML = "";
